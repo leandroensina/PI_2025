@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Gráfico de Aceleração em Tempo Real</title>
+  <style>
+    body { text-align: center; font-family: Arial, sans-serif; }
+    canvas { max-width: 800px; margin: auto; display: block; }
+  </style>
+</head>
+<body>
+  <h1>Gráfico de Aceleração em Tempo Real</h1>
+  <canvas id="accelChart"></canvas>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0"></script>
+	<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+	<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@0.7.0"></script>
+
+  <script>
+    const ctx = document.getElementById('accelChart').getContext('2d');
+
+    const accelChart = new Chart(ctx, {
+			    // The type of chart we want to create
+			    type: 'line',
+
+			    // The data for our dataset
+			    data: {
+			        labels: [],
+			        datasets: [{
+			            label: 'X',
+			            backgroundColor: 'rgb(255, 99, 132, 0.2)',
+			            borderColor: 'rgb(255, 99, 132)',
+			            data: []
+			        },{
+			        	label: 'Y',
+			            backgroundColor: 'rgb(0, 99, 132, 0.2)',
+			            borderColor: 'rgb(0, 99, 132)',
+			            data: []
+			        },{
+			        	label: 'Z',
+			            backgroundColor: 'rgb(0, 99, 0, 0.2)',
+			            borderColor: 'rgb(0, 99, 0)',
+			            data: []
+			        }]
+			    },
+
+			    // Configuration options go here
+			    options: {			 
+			    	scales: {
+			    		xAxes: [{
+				    	      scaleLabel: {
+				    	        display: true,
+				    	        labelString: 'Tempo (s)'
+				    	      }
+				    	    }],
+			    		yAxes: [{
+			    	      scaleLabel: {
+			    	        display: true,
+			    	        labelString: 'Aceleração (m/s²)'
+			    	      }
+			    	    }]
+			    	  },
+			    	  pan: {
+							enabled: true,
+							mode: 'xy'
+					  },
+					  zoom: {
+						enabled: true,
+						mode: 'xy'
+					  },						
+			    	  'onClick': function(mouseEvent, chart){
+			    		  index_tempo = this.data.labels[chart[0]._index];
+			    		  
+			    		  segmentar(index_tempo);
+			    	  }
+			    }
+			});
+
+    const ws = new WebSocket('ws://192.168.15.5:8080');
+
+    ws.onmessage = (event) => {
+      console.log(event.data)
+      let accel = JSON.parse(event.data);
+     
+
+      const timestamp = accel.timestamp; // já em ms
+      
+      accelChart.data.labels.push(timestamp);
+      accelChart.data.datasets[0].data.push(accel.x);
+      accelChart.data.datasets[1].data.push(accel.y);
+      accelChart.data.datasets[2].data.push(accel.z);
+      accelChart.update();
+    };
+  </script>
+</body>
+</html>

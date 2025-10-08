@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Captura de Aceleração</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #f5f7fa;
+      color: #333;
+      text-align: center;
+      padding: 2rem;
+    }
+    h1 { color: #0056b3; }
+    .status {
+      margin: 1rem 0;
+      padding: 0.5rem 1rem;
+      display: inline-block;
+      border-radius: 6px;
+      background: #e3f2fd;
+      color: #0277bd;
+      font-weight: bold;
+    }
+    .data-container {
+      margin-top: 2rem;
+      background: white;
+      display: inline-block;
+      padding: 1.5rem 2rem;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      text-align: left;
+    }
+    .data-item {
+      font-size: 1.2rem;
+      margin: 0.5rem 0;
+    }
+    #loading { font-style: italic; color: #888; }
+    button {
+      background-color: #1976d2;
+      color: white;
+      border: none;
+      padding: 0.8rem 1.6rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      margin-top: 1rem;
+      transition: 0.3s;
+    }
+    button:hover { background-color: #1565c0; }
+    button:disabled {
+      background-color: #90a4ae;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <h1>📱 Captura de Aceleração do Smartphone</h1>
+  <p>Abra esta página no seu smartphone e clique no botão abaixo para iniciar a transmissão dos dados.</p>
+
+  <div class="status" id="status">Conectando ao servidor...</div>
+
+  <button id="startBtn" disabled>Iniciar Transmissão</button>
+
+  <div id="loading">Aguardando início da transmissão...</div>
+
+  <div class="data-container" id="data" style="display:none;">
+    <div class="data-item"><strong>X:</strong> <span id="x">0</span> m/s²</div>
+    <div class="data-item"><strong>Y:</strong> <span id="y">0</span> m/s²</div>
+    <div class="data-item"><strong>Z:</strong> <span id="z">0</span> m/s²</div>
+    <div class="data-item"><strong>Tempo (s):</strong> <span id="time">0.00</span></div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const loadingEl = document.getElementById('loading');
+    const dataEl = document.getElementById('data');
+    const xEl = document.getElementById('x');
+    const yEl = document.getElementById('y');
+    const zEl = document.getElementById('z');
+    const timeEl = document.getElementById('time');
+    const startBtn = document.getElementById('startBtn');
+
+    let transmitting = false;
+    let ws;
+    let accelerometer;
+    let elapsedSeconds = 0;
+    const frequency = 30; // Hz
+    const deltaT = 1 / frequency; // intervalo em segundos
+
+    function connectWebSocket() {
+      ws = new WebSocket('ws://192.168.15.5:8080');
+
+      ws.addEventListener('open', () => {
+        statusEl.textContent = '✅ Conectado ao servidor';
+        statusEl.style.background = '#e8f5e9';
+        statusEl.style.color = '#2e7d32';
+        startBtn.disabled = false;
+      });
+
+      ws.addEventListener('close', () => {
+        statusEl.textContent = '❌ Conexão perdida. Tentando reconectar...';
+        statusEl.style.background = '#ffebee';
+        statusEl.style.color = '#c62828';
+        startBtn.disabled = true;
+        setTimeout(connectWebSocket, 2000);
+      });
+
+      ws.addEventListener('error', () => {
+        statusEl.textContent = '⚠️ Erro de conexão com o servidor';
+        statusEl.style.background = '#fff3e0';
+        statusEl.style.color = '#ef6c00';
+      });
+    }
+
+    connectWebSocket();
+
+    startBtn.addEventListener('click', async () => {
+      if (!transmitting) {
+        startTransmission();
+      } else {
+        stopTransmission();
+      }
+    });
+
+    async function startTransmission() {
+      if (!ws || ws.readyState !== WebSocket.OPEN)
+        return alert('Aguardando conexão com o servidor...');
+
+      // Solicita permissão no iOS/Chrome
+      try {
+        if (typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission) {
+          const response = await DeviceMotionEvent.requestPermission();
+          if (response !== 'granted') {
+            alert('Permissão negada para acessar o acelerômetro.');
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Permissão não requerida neste navegador.');
+      }
+
+      try {
+        elapsedSeconds = 0;
+        accelerometer = new Accelerometer({ frequency });
+
+        accelerometer.addEventListener('reading', () => {
+          elapsedSeconds += deltaT;
+
+          const data = {
+            x: accelerometer.x || 0,
+            y: accelerometer.y || 0,
+            z: accelerometer.z || 0,
+            timestamp: parseFloat(elapsedSeconds.toFixed(3)) // segundos com 3 casas decimais
+          };
+
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(data));
+          }
+
+          loadingEl.style.display = 'none';
+          dataEl.style.display = 'inline-block';
+          xEl.textContent = data.x.toFixed(2);
+          yEl.textContent = data.y.toFixed(2);
+          zEl.textContent = data.z.toFixed(2);
+          timeEl.textContent = data.timestamp.toFixed(3);
+        });
+
+        accelerometer.start();
+
+        transmitting = true;
+        startBtn.textContent = '⏹️ Parar Transmissão';
+        startBtn.style.backgroundColor = '#d32f2f';
+        loadingEl.textContent = 'Transmitindo dados...';
+      } catch (error) {
+        console.error('Erro ao iniciar o acelerômetro:', error);
+        alert('Não foi possível acessar o acelerômetro neste dispositivo/navegador.');
+      }
+    }
+
+    function stopTransmission() {
+      transmitting = false;
+      startBtn.textContent = '▶️ Iniciar Transmissão';
+      startBtn.style.backgroundColor = '#1976d2';
+      loadingEl.style.display = 'block';
+      loadingEl.textContent = 'Transmissão pausada.';
+      dataEl.style.display = 'none';
+
+      if (accelerometer) {
+        accelerometer.stop();
+        accelerometer.removeEventListener('reading', null);
+        accelerometer = null;
+      }
+    }
+  </script>
+</body>
+</html>
