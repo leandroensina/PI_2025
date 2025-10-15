@@ -88,7 +88,7 @@
     const deltaT = 1 / frequency; // intervalo em segundos
 
     function connectWebSocket() {
-      ws = new WebSocket('ws://192.168.15.5:8080');
+      ws = new WebSocket('ws://pi-2025-w3gc.onrender.com:8080');
 
       ws.addEventListener('open', () => {
         statusEl.textContent = '✅ Conectado ao servidor';
