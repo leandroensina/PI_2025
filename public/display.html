@@ -77,7 +77,7 @@
 			    }
 			});
 
-    const ws = new WebSocket('ws://pi-2025-w3gc.onrender.com:8080');
+    const ws = new WebSocket('wss://pi-2025-w3gc.onrender.com:8080');
 
     ws.onmessage = (event) => {
       console.log(event.data)
